@@ -6,15 +6,15 @@ library(afex)
 setwd("~/projects/FrequencySliding/")
 
 ###### Matrix preperation #######
-BP <- readMat("/home/kaanka5312/projects/FrequencySliding/data/output/PF_BP.mat")
-n_bp <- 20
-PF_whole_bp <- t(sapply(BP$PF.all.slow4[1:n_bp], function(x) {
+BP <- readMat("./data/output/PF_BP.mat")
+n_bp <- 38
+PF_whole_bp <- t(sapply(BP$PF.all.slow5[1:n_bp], function(x) {
   x[[1]]["PF.whole", 1, 1][[1]]
 }))
 
-HC <- readMat("/home/kaanka5312/projects/FrequencySliding/data/output/PF_HC.mat")
+HC <- readMat("./data/output/PF_HC.mat")
 n_hc <- 33
-PF_whole_hc <- t(sapply(HC$PF.all.slow4[1:n_hc], function(x) {
+PF_whole_hc <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
   x[[1]]["PF.whole", 1, 1][[1]]
 }))
 
@@ -43,7 +43,7 @@ summary(aov_result)
 
 library(emmeans)
 # Store the emmeans object
-em <- emmeans(aov_result, ~ Region | group)
+em <- emmeans(aov_result, ~ group | Region)
 
 # Get pairwise comparisons WITHIN each group (e.g., BP: trans_self vs uni_self, etc.)
 pairs(em)

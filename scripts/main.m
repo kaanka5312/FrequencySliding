@@ -3,14 +3,29 @@
 %### B I P O L A R ######
 %=+=+=+=+=+=+=+=+=+=+=+=+
 % Linux 
-cd /media/kaanka5312/HD-B1/BPB_proc/
+%cd /media/kaanka5312/HD-B1/BPB_proc/
+
+% MacOS
+cd /Volumes/HD-B1/BPB_proc/
 % List of subject directories (adjust pattern as needed)
 subject_dirs = dir('sub-*.results');
 subject_dirs = {subject_dirs.name};
+subject_dirs_full_1 = cellfun(@(s) fullfile('/Volumes/HD-B1/BPB_proc/', s), subject_dirs, 'UniformOutput', false);
+
+% Ses-1
+cd /Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/
+subject_dirs = dir('sub-*.results');
+subject_dirs = {subject_dirs.name};
+subject_dirs_full_2 = cellfun(@(s) fullfile('/Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/', s), subject_dirs, 'UniformOutput', false);
+
+% Merging 
+subject_dirs_full = [subject_dirs_full_1, subject_dirs_full_2];
 
 % Apply BoldRoi_Subjects to each folder using cellfun
-BOLD_all_subjects_BP = cellfun(@BoldRoi_Subjects, subject_dirs, 'UniformOutput', false);
-save('/home/kaanka5312/projects/FrequencySliding/data/output/BOLD_all_subjects_BP.mat',...
+BOLD_all_subjects_BP = cellfun(@BoldRoi_Subjects, subject_dirs_full, 'UniformOutput', false);
+
+
+save('/Users/kaankeskin/projects/FrequencySliding/data/output/BOLD_all_subjects_BP.mat',...
     "BOLD_all_subjects_BP",'-mat')
 
 %=+=+=+=+=+=+=+=+=+=+=+=+
@@ -33,16 +48,16 @@ save('/home/kaanka5312/projects/FrequencySliding/data/output/BOLD_all_subjects_H
 %=+=+=+=+=+=+=+=+=+=+=+=+
 %### B I P O L A R ######
 %=+=+=+=+=+=+=+=+=+=+=+=+
-BOLD_all_subjects=load('./data/output/BOLD_all_subjects_BP.mat');
+load('./data/output/BOLD_all_subjects_BP.mat');
 
 BOLD_filtered_slow4 = cellfun( ...
     @(x) bandpass_cheby1(x', 0.027, 0.073, 1/3)', ...
-    BOLD_all_subjects, ...
+    BOLD_all_subjects_BP, ...
     'UniformOutput', false);
 
 BOLD_filtered_slow5 = cellfun( ...
     @(x) bandpass_cheby1(x', 0.01, 0.027, 1/3)', ...
-    BOLD_all_subjects, ...
+    BOLD_all_subjects_BP, ...
     'UniformOutput', false);
 
 [peak_freq,x_phase] = pf_cohen(BOLD_filtered_slow5{4}(:,4:153)',1/3);
