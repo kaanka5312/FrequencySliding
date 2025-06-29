@@ -54,6 +54,6 @@ ggplot(Peak_long, aes(x = Region, y = value, color = group, group = group)) +
   stat_summary(fun = mean, geom = "line", position = position_dodge(width = 0.2)) +
   stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.1,
                position = position_dodge(width = 0.2)) +
-  labs(y="Peak Frequency", title = "Slow4")+
+  labs(y="Peak Frequency", title = "Slow5")+
   theme_minimal()
 
