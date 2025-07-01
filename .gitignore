@@ -32,4 +32,4 @@ codegen/
 # Cloud based storage dotfile
 .MATLABDriveTag
 
-./data/output/*.rds
+.\data\output\*.rds
