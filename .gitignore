@@ -32,4 +32,6 @@ codegen/
 # Cloud based storage dotfile
 .MATLABDriveTag
 
-.\data\output\*.rds
+
+data/output/slow5_PF_brms_models.rds
+data/output/slow4_PF_brms_models.rds

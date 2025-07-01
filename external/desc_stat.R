@@ -3,7 +3,13 @@ library(R.matlab)
 library(NeuroMyelFC)
 library(reshape2)
 library(afex)
+
+# MacOS
 setwd("~/projects/FrequencySliding/")
+
+# windows
+setwd("C:/Users/kaank/OneDrive/Belgeler/GitHub/FrequencySliding/")
+
 
 ###### Matrix preperation #######
 BP <- readMat("./data/output/PF_BP.mat")
