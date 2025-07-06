@@ -35,6 +35,20 @@ writematrix(subject_dirs, 'bpb_strings.txt', 'Delimiter', 'tab');
 save('/Users/kaankeskin/projects/FrequencySliding/data/output/BOLD_all_subjects_BP.mat',...
     "BOLD_all_subjects_BP",'-mat')
 
+% Ses-2
+cd /Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc/
+subject_dirs = dir('sub-*.results');
+subject_dirs_ses2 = {subject_dirs.name};
+subject_dirs_full_ses2 = cellfun(@(s) fullfile('/Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc/', s), subject_dirs_ses2, 'UniformOutput', false);
+% Apply BoldRoi_Subjects to each folder using cellfun
+BOLD_ses2_BP = cellfun(@BoldRoi_Subjects, subject_dirs_full_ses2, 'UniformOutput', false);
+save('/home/kaanka5312/projects/FrequencySliding/data/output/BOLD_ses2_BP.mat',...
+    "BOLD_ses2_BP",'-mat')
+
+
+subject_dirs = string(subject_dirs_ses2);
+writematrix(subject_dirs, 'bpb_ses2_strings.txt', 'Delimiter', 'tab');
+
 %=+=+=+=+=+=+=+=+=+=+=+=+
 %### C O N T R O L ######
 %=+=+=+=+=+=+=+=+=+=+=+=+
