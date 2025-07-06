@@ -7,22 +7,29 @@
 
 % MacOS
 cd /Volumes/HD-B1/BPB_proc/
+% Windows 
+cd E:/BPB_proc/
 % List of subject directories (adjust pattern as needed)
 subject_dirs = dir('sub-*.results');
-subject_dirs = {subject_dirs.name};
-subject_dirs_full_1 = cellfun(@(s) fullfile('/Volumes/HD-B1/BPB_proc/', s), subject_dirs, 'UniformOutput', false);
+subject_dirs_1 = {subject_dirs.name};
+subject_dirs_full_1 = cellfun(@(s) fullfile('E:/BPB_proc/', s), subject_dirs, 'UniformOutput', false);
 
 % Ses-1
 cd /Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/
+cd E:/Thesis/SES-1_BIDS/derivatives/afni_proc/ 
 subject_dirs = dir('sub-*.results');
-subject_dirs = {subject_dirs.name};
-subject_dirs_full_2 = cellfun(@(s) fullfile('/Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/', s), subject_dirs, 'UniformOutput', false);
+subject_dirs_2 = {subject_dirs.name};
+subject_dirs_full_2 = cellfun(@(s) fullfile('E:/Thesis/SES-1_BIDS/derivatives/afni_proc/', s), subject_dirs, 'UniformOutput', false);
 
 % Merging 
+subject_dirs = [subject_dirs_1, subject_dirs_2];
 subject_dirs_full = [subject_dirs_full_1, subject_dirs_full_2];
 
 % Apply BoldRoi_Subjects to each folder using cellfun
 BOLD_all_subjects_BP = cellfun(@BoldRoi_Subjects, subject_dirs_full, 'UniformOutput', false);
+
+subject_dirs = string(subject_dirs);
+writematrix(subject_dirs, 'bpb_strings.txt', 'Delimiter', 'tab');
 
 
 save('/Users/kaankeskin/projects/FrequencySliding/data/output/BOLD_all_subjects_BP.mat',...
