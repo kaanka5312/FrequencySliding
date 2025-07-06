@@ -29,11 +29,11 @@ PF_all_scaled <- list()
 
 for (comp in components) {
   # Extract component from each subject (1st dimension is subject, 2nd is region)
-  PF_bp_mat <- t(sapply(BP$PF.all.slow4[1:n_bp], function(x) {
+  PF_bp_mat <- t(sapply(BP$PF.all.slow5[1:n_bp], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
-  PF_hc_mat <- t(sapply(HC$PF.all.slow4[1:n_hc], function(x) {
+  PF_hc_mat <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
@@ -102,7 +102,7 @@ for (comp in names(PF_long_list)) {
   )
 }
 
-saveRDS(fit_list, file = "./data/output/slow4_PF_brms_models.rds")
+saveRDS(fit_list, file = "./data/output/slow5_PF_brms_models.rds")
 
 ##
 ce_plot <- plot(conditional_effects(fit_list[[1]], effects = "region_type:group"), plot=FALSE)[[1]]
@@ -126,3 +126,198 @@ final_plot <- annotate_figure(combined_plot,
                 top = text_grob("Slow 4", face = "bold", size = 16))
 # Save to file
 ggsave("./figures/slow4_combined_plot.png", final_plot, width = 10, height = 8, dpi = 300,bg="white")
+
+###### RELATION TO BDI #####
+
+PF_summary_list <- lapply(seq_along(PF_long_list), function(x) {PF_long_list[[x]] %>%
+    group_by(subj_id, region_type) %>%
+    summarise(mean_PF = mean(value), .groups = "drop") %>%
+    tidyr::pivot_wider(names_from = region_type, values_from = mean_PF)} )
+
+subjects <- readLines("./data/raw/bpb_strings.txt")
+subjects_split <- c(strsplit(subjects, "\t")[[1]],paste0("sub-",43:75,".results"))
+
+# Extract numbers from the strings
+numbers <- as.numeric(gsub("sub-(\\d+)\\.results", "\\1", subjects_split))
+
+# Sort based on the numbers
+subjects_sorted <- subjects_split[order(numbers)]
+
+print(subjects_sorted)
+
+PF_summary_list <- lapply(seq_along(PF_summary_list), function(x) {
+  PF_summary_list[[x]]$subj_id <- subjects_sorted
+  PF_summary_list[[x]]  # Return the modified element
+  })
+
+PF_summary_list_processed <- lapply(PF_summary_list, process_pf_summary)
+
+
+###############
+
+subject_data_list <- lapply(seq_along(PF_summary_list_processed), function(x) {
+  PF_summary_list_processed[[x]] %>% select(subj_id, 
+                                            group, 
+                                            BDI_total_score, 
+                                            NA.Score, 
+                                            PD.Score, 
+                                            SM.Score,  
+                                            starts_with("zdev_"))
+})
+
+####### PRIOR PREDICTIVE CHECK ############
+# For student distribution univariate total BDI
+priors <- c(
+  prior(normal(30, 5), class = "Intercept"),   # More tightly around typical BDI
+  prior(normal(0, 2), class = "b"),            # Smaller plausible effects per SD
+  prior(exponential(1), class = "sigma")    # Less noise allowed
+)
+
+fit_prior <- brm(
+  formula = BDI_total_score  ~ zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self,
+  data = subject_data %>% filter(group == "BP"),
+  family = student(),
+  prior = priors,
+  sample_prior = "only",
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+prior_preds <- posterior_predict(fit_prior)
+
+library(bayesplot)
+
+ppc_dens_overlay(
+  y = subject_data$BDI_total_score[subject_data$group == "BP"],
+  yrep = prior_preds[1:1000, ]  # Use first 100 draws to avoid overplotting
+)
+
+
+fit_unv_list <- lapply(seq_along(subject_data_list), function(x){
+  brm(
+    BDI_total_score  ~ zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self,
+    data = subject_data_list[[x]] %>% filter(group=="BP"),
+    family = student(),
+    prior = priors,
+    chains = 4,
+    iter = 2000,
+    cores = 4
+  )
+})
+
+summary(fit_unv_list[[4]])
+
+# Extract posterior draws
+posterior <- as_draws_df(fit_unv_list[[4]])
+
+# Forest plot for fixed effects
+p1 <- mcmc_areas(
+  posterior,
+  pars = c("b_Intercept", "b_zdev_uni_nonself", 
+           "b_zdev_uni_self", "b_zdev_trans_nonself", "b_zdev_trans_self"),
+  prob = 0.95
+) +
+  ggtitle("Peak Frequency - Fall") 
+
+ggsave("./figures/PF_n22_Fall.png", p1, width = 6, height = 4, dpi = 300,bg="white")
+
+###########
+# Multivariate Model
+
+fit_multv_list <- fit_subject <- lapply(seq_along(subject_data_list), function(x){
+  brm(
+  mvbind(NA.Score, PD.Score, SM.Score) ~ 1 + zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self,
+  data = subject_data_list[[x]] %>% filter(group=="BP"),
+  family = student(),
+  prior =  priors <- c(
+    prior(normal(0, 5), class = "Intercept", resp = "NAScore"),
+    prior(normal(0, 5), class = "Intercept", resp = "PDScore"),
+    prior(normal(0, 5), class = "Intercept", resp = "SMScore"),
+    
+    prior(normal(0, 2), class = "b", resp = "NAScore"),
+    prior(normal(0, 2), class = "b", resp = "PDScore"),
+    prior(normal(0, 2), class = "b", resp = "SMScore"),
+    
+    prior(exponential(1), class = "sigma", resp = "NAScore"),
+    prior(exponential(1), class = "sigma", resp = "PDScore"),
+    prior(exponential(1), class = "sigma", resp = "SMScore"),
+    
+    prior(lkj(2), class = "rescor")  # Residual correlation prior
+  ),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+})
+
+summary(fit_subject)
+
+summary(fit_multv_list[[4]])
+
+# Hierarhical Modelling 
+library(dplyr)
+library(tidyr)
+
+long_data <- subject_data %>%
+  pivot_longer(
+    cols = c(NA.Score, PD.Score, SM.Score),
+    names_to = "subscale",
+    values_to = "BDI_score"
+  )
+
+library(brms)
+
+fit_hierarchical <- brm(
+  BDI_score ~ 1 + zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self + 
+    (1 + zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self | subscale),
+  data = long_data,
+  family = student(),
+  prior = c(
+    prior(normal(0, 5), class = "Intercept"),
+    prior(normal(0, 2), class = "b"),
+    prior(exponential(1), class = "sd"),
+    prior(lkj(2), class = "cor")  # Allows correlations between subscale-level slopes
+  ),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+summary(fit_hierarchical)
+
+long_data_list <- lapply(seq_along(subject_data_list), function(x) {
+  subject_data_list[[x]] %>%
+    pivot_longer(
+      cols = c(NA.Score, PD.Score, SM.Score),
+      names_to = "subscale",
+      values_to = "BDI_score"
+    )
+  })
+
+fit_hierarchical_list <- lapply(seq_along(subject_data_list), function(x){
+  brm(
+    BDI_score ~ 1 + zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self + 
+      (1 + zdev_uni_nonself + zdev_uni_self + zdev_trans_nonself + zdev_trans_self | subscale),
+    data = long_data_list[[x]] %>% filter(group=="BP"),
+    family = student(),
+    prior = c(
+      prior(normal(0, 5), class = "Intercept"),
+      prior(normal(0, 2), class = "b"),
+      prior(exponential(1), class = "sd"),
+      prior(lkj(2), class = "cor")  # Allows correlations between subscale-level slopes
+    ),
+    chains = 4,
+    iter = 2000,
+    cores = 4
+  )
+})
+
+summary(fit_hierarchical_list[[4]])
+
+####### CHECK WITH LOO ######
+library(loo)
+loo_mv <- loo(fit_subject)
+loo_hier <- loo(fit_hierarchical)
+
+
