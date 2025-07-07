@@ -92,7 +92,7 @@ PF_collapsed_list <- lapply(PF_long_list, function(df) {
 ####=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 ###  G R O U P X R E G I ON ###
 #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
-
+library(brms)
 # Prior Predictive Check 
 priors <- c(
   # Intercept (baseline PF)
@@ -156,7 +156,7 @@ for (comp in names(PF_collapsed_list)) {
   message("Fitting model for: ", comp)
   
   fit_list[[comp]] <- brm(
-    value ~ group * region_category + (1 | subj_id) + (1 | region),
+    value ~ group * region_category + (region_category | subj_id) + (1 | region),
     data = PF_collapsed_list[[comp]],
     family = student(),
     prior = priors,
@@ -167,7 +167,7 @@ for (comp in names(PF_collapsed_list)) {
   )
 }
 
-saveRDS(fit_list, file = "./data/output/unitrans_slow4_PF_brms_models.rds")
+saveRDS(fit_list, file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 
 ##
 ce_plot <- plot(conditional_effects(fit_list[[1]], effects = "region_type:group"), plot=FALSE)[[1]]
@@ -198,6 +198,42 @@ final_plot <- annotate_figure(combined_plot,
                 top = text_grob("Slow 5", face = "bold", size = 16))
 # Save to file
 ggsave("./figures/slow5_combined_unitrans_plot.png", final_plot, width = 10, height = 8, dpi = 300,bg="white")
+
+posterior <- posterior_samples(fit_list[[5]])
+# Differences
+bp_hc_transmodal <- posterior$b_groupHC  # Transmodal difference
+bp_hc_unimodal <- posterior$b_groupHC + posterior$`b_groupHC:region_categoryunimodal`  # Unimodal difference
+
+# Combine into a data frame for plotting
+diffs <- data.frame(
+  Difference = c(bp_hc_transmodal, bp_hc_unimodal),
+  Region = rep(c("Transmodal", "Unimodal"), each = nrow(posterior))
+)
+
+# Plot differences
+ggplot(diffs, aes(x = Region, y = Difference)) +
+  stat_halfeye(slab_alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(y = "BP - HC Difference", x = "Region Category") +
+  theme_minimal()
+
+#### This part calculates correlation between Unimodal and transmodal regions.
+# produce same with pearson, but really nice for the mathematical steps 
+post <- posterior_samples(test, 
+                          pars = c("sd_subj_id__Intercept", "sd_subj_id__region_categoryunimodal", "cor_subj_id__Intercept__region_categoryunimodal")
+)
+### Correlation between transmodal and unimodal 
+var_T <- post$sd_subj_id__Intercept^2
+var_D <- post$sd_subj_id__region_categoryunimodal^2
+cov_TD <- post$cor_subj_id__Intercept__region_categoryunimodal * post$sd_subj_id__Intercept * post$sd_subj_id__region_categoryunimodal
+
+cov_TU <- var_T + cov_TD
+var_U <- var_T + var_D + 2 * cov_TD
+
+cor_TU <- cov_TU / sqrt(var_T * var_U)
+
+mean(cor_TU)
+quantile(cor_TU, c(0.025, 0.975))
 
 ###### RELATION TO BDI #####
 
