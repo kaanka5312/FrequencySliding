@@ -29,11 +29,11 @@ PF_all_scaled <- list()
 
 for (comp in components) {
   # Extract component from each subject (1st dimension is subject, 2nd is region)
-  PF_bp_mat <- t(sapply(BP$PF.all.slow4[1:n_bp], function(x) {
+  PF_bp_mat <- t(sapply(BP$PF.all.slow5[1:n_bp], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
-  PF_hc_mat <- t(sapply(HC$PF.all.slow4[1:n_hc], function(x) {
+  PF_hc_mat <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
@@ -89,7 +89,47 @@ PF_collapsed_list <- lapply(PF_long_list, function(df) {
       TRUE ~ NA_character_
     ))
 })
-#########
+####=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+###  G R O U P X R E G I ON ###
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+# Prior Predictive Check 
+priors <- c(
+  # Intercept (baseline PF)
+  prior(normal(0, 0.5), class = "Intercept"),
+  
+  # Fixed effects for group, region_category, and their interaction
+  prior(normal(0, 0.25), class = "b"),
+  
+  # Random intercept SDs (subjects, regions)
+  prior(exponential(1), class = "sd"),  # weakly informative
+  
+  # Residual SD (sigma)
+  prior(exponential(1), class = "sigma")
+)
+
+
+fit_prior <- brm(
+  formula = value ~ group * region_category + (1 | subj_id) + (1 | region),
+  data = PF_collapsed_list[[1]],
+  family = student(),
+  prior = priors,
+  sample_prior = "only",
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+prior_preds <- posterior_predict(fit_prior)
+
+library(bayesplot)
+
+ppc_dens_overlay(
+  y = PF_long_list[[1]]$value,
+  yrep = prior_preds[1:100, ]  # Use first 100 draws to avoid overplotting
+)
+
+
 library(brms)
 
 # Initialize empty list to hold model fits
@@ -102,7 +142,8 @@ for (comp in names(PF_long_list)) {
   fit_list[[comp]] <- brm(
     value ~ group * region_type + (1 | subj_id) + (1 | region),
     data = PF_long_list[[comp]],
-    family = gaussian(),
+    family = student(),
+    prior = priors,
     chains = 4,
     iter = 2000,
     cores = 6,
@@ -117,7 +158,8 @@ for (comp in names(PF_collapsed_list)) {
   fit_list[[comp]] <- brm(
     value ~ group * region_category + (1 | subj_id) + (1 | region),
     data = PF_collapsed_list[[comp]],
-    family = gaussian(),
+    family = student(),
+    prior = priors,
     chains = 4,
     iter = 2000,
     cores = 6,
