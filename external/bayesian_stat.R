@@ -168,7 +168,7 @@ for (comp in names(PF_collapsed_list)) {
 }
 
 saveRDS(fit_list, file = "./data/output/unitrans_slow5_PF_brms_models.rds")
-
+fit_list <- readRDS(file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 ##
 ce_plot <- plot(conditional_effects(fit_list[[1]], effects = "region_type:group"), plot=FALSE)[[1]]
 ce_plot + ggtitle("test")
