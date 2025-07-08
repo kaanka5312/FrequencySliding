@@ -504,3 +504,46 @@ loo_mv <- loo(fit_subject)
 loo_hier <- loo(fit_hierarchical)
 
 
+# Filter for BP subjects only
+bp_data <- long_data_list[[5]] %>%
+  filter(group == "BP") %>%
+  mutate(
+    subj_numeric = as.integer(factor(subj_id)),  # Numeric subject IDs for Stan
+    subscale_numeric = as.integer(factor(subscale))  # Numeric subscale IDs
+  )
+
+# Prepare Stan Data List
+stan_data_bp <- list(
+  n_obs = nrow(bp_data),
+  n_subj = length(unique(bp_data$subj_numeric)),
+  n_subscales = length(unique(bp_data$subscale_numeric)),
+  subj_id = bp_data$subj_numeric,
+  subscale_id = bp_data$subscale_numeric,
+  predictors = as.matrix(bp_data[, c("zdev_uni_mean", "zdev_trans_mean")]),
+  BDI_score = bp_data$BDI_score
+)
+
+# Inspect
+str(stan_data_bp)
+
+# Fit model
+fit <- sampling(
+  stan_model,
+  data = stan_data_bp,  # your list of data
+  chains = 4,
+  iter = 2000,
+  seed = 123
+)
+
+# Extract posterior predictive samples
+posterior <- as_draws_df(fit)  # your fit object
+
+# Extract predicted scores:
+y_rep <- posterior::extract_variable_matrix(fit, variable = "y_rep")
+
+
+# Observed outcome
+y_obs <- subject_data_list[[x]]$BDI_total_score[1:33]  # Replace with your real vector
+
+# Density Overlay
+ppc_dens_overlay(y_obs, yrep[1:100, ])  # Use first 100 draws for clarity

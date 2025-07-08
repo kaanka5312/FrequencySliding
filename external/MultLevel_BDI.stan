@@ -19,6 +19,7 @@ parameters {
   cholesky_factor_corr[3] L_random; // Correlations among random effects. Mean rho is 3x3 matrix
 
   real<lower=0> sigma; // residual SD
+  real<lower=2> nu;      // degrees of freedom for Student-t (must be >2 for finite variance)
 }
 
 transformed parameters {
@@ -37,6 +38,7 @@ model {
   sigma_random ~ exponential(1);
   L_random ~ lkj_corr_cholesky(2);
   sigma ~ exponential(1);
+  nu ~ gamma(2, 0.1);  // favors moderate values, avoids heavy tails dominating
 
   // Random effect standard normal prior
   for (i in 1:n_subj) {
@@ -54,10 +56,23 @@ model {
 
   }
 
-  BDI_score ~ normal(mu, sigma);
+  BDI_score ~ student_t(nu, mu, sigma);
 }
 
 generated quantities{
+  vector[n_obs] y_rep;
   matrix[3,3] Rho;
   Rho = multiply_lower_tri_self_transpose(L_random);
+  
+  for (i in 1:n_obs) {
+    int subj = subj_id[i];
+    int subscale = subscale_id[i];
+
+    real mu_i = intercept[subscale] + random_effects[subj, 1] +
+      (beta[subscale, 1] + random_effects[subj, 2]) * predictors[i, 1] +
+      (beta[subscale, 2] + random_effects[subj, 3]) * predictors[i, 2];
+
+    y_rep[i] = student_t_rng(nu, mu_i, sigma);
+  }
 }
+

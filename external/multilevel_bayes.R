@@ -1,5 +1,9 @@
 # windows
 setwd("C:/Users/kaank/OneDrive/Belgeler/GitHub/FrequencySliding/")
+
+# MacOS
+setwd("~/projects/FrequencySliding/")
+
 set.seed(123)
 
 # Settings
@@ -20,6 +24,7 @@ beta <- matrix(c(2, -1, 1.5, 0.5, -2, 1), nrow = n_subscales, byrow = TRUE)
 L_random <- chol(matrix(c(1, 0.7, 0.7,
                           0.7, 1, 0.7,
                           0.7, 0.7, 1), nrow = 3))  # Cholesky of random effects correlation
+
 sigma_random <- c(2, 2, 2)  # SDs of random effects (intercept, slopes)
 
 # Simulate random effects for subjects
@@ -43,8 +48,10 @@ for (i in 1:n_obs) {
   
 }
 
-sigma <- 2  # residual SD
-BDI_score <- mu + rnorm(n_obs, 0, sigma)
+# Simulate with Student-t noise
+sigma <- 2     # Scale
+nu <- 5        # Degrees of freedom (heavier tails for small nu)
+BDI_score <- mu + (sigma * rt(n_obs, df = nu))  # t-distributed noise
 
 # Final data list for Stan
 synthetic_data <- list(
