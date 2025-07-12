@@ -29,11 +29,11 @@ PF_all_scaled <- list()
 
 for (comp in components) {
   # Extract component from each subject (1st dimension is subject, 2nd is region)
-  PF_bp_mat <- t(sapply(BP$PF.all.slow5[1:n_bp], function(x) {
+  PF_bp_mat <- t(sapply(BP$PF.all.slow4[1:n_bp], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
-  PF_hc_mat <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
+  PF_hc_mat <- t(sapply(HC$PF.all.slow4[1:n_hc], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
@@ -87,8 +87,12 @@ PF_collapsed_list <- lapply(PF_long_list, function(df) {
       str_starts(region_type, "uni") ~ "unimodal",
       str_starts(region_type, "trans") ~ "transmodal",
       TRUE ~ NA_character_
-    ))
+    ),
+    group = factor(group, levels = c("HC", setdiff(unique(group), "HC"))),
+    region_category = factor(region_category, levels = c("unimodal", setdiff(unique(region_category), "unimodal")))
+    )
 })
+
 ####=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 ###  G R O U P X R E G I ON ###
 #=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
@@ -102,54 +106,26 @@ priors <- c(
   prior(normal(0, 0.25), class = "b"),
   
   # Random intercept SDs (subjects, regions)
-  prior(exponential(1), class = "sd"),  # weakly informative
+  prior(exponential(2), class = "sd"),  # weakly informative
   
   # Residual SD (sigma)
-  prior(exponential(1), class = "sigma")
+  prior(exponential(2), class = "sigma")
 )
 
-
-fit_prior <- brm(
-  formula = value ~ group * region_category + (1 | subj_id) + (1 | region),
-  data = PF_collapsed_list[[1]],
+# Test Priors
+prior_only_fit <- brm(
+  value ~ group * region_category + (region_category | subj_id) + (1 | region),
+  data = PF_collapsed_list[[5]],
   family = student(),
   prior = priors,
-  sample_prior = "only",
+  sample_prior = "only",  # this is the key
   chains = 4,
   iter = 2000,
-  cores = 4
+  cores = 6,
+  seed = 123
 )
 
-prior_preds <- posterior_predict(fit_prior)
-
-library(bayesplot)
-
-ppc_dens_overlay(
-  y = PF_long_list[[1]]$value,
-  yrep = prior_preds[1:100, ]  # Use first 100 draws to avoid overplotting
-)
-
-
-library(brms)
-
-# Initialize empty list to hold model fits
-fit_list <- list()
-
-# Loop through each component's long data frame
-for (comp in names(PF_long_list)) {
-  message("Fitting model for: ", comp)
-  
-  fit_list[[comp]] <- brm(
-    value ~ group * region_type + (1 | subj_id) + (1 | region),
-    data = PF_long_list[[comp]],
-    family = student(),
-    prior = priors,
-    chains = 4,
-    iter = 2000,
-    cores = 6,
-    seed = 123  # Set seed for reproducibility
-  )
-}
+pp_check(prior_only_fit, ndraws = 1e3) + xlim(c(-3,3)) # or use type = "dens_overlay", etc.
 
 # Loop through each component's long data frame
 for (comp in names(PF_collapsed_list)) {
@@ -167,55 +143,36 @@ for (comp in names(PF_collapsed_list)) {
   )
 }
 
-saveRDS(fit_list, file = "./data/output/unitrans_slow5_PF_brms_models.rds")
-fit_list <- readRDS(file = "./data/output/unitrans_slow5_PF_brms_models.rds")
+saveRDS(fit_list, file = "./data/output/unitrans_slow4_PF_brms_models.rds")
+fit_list <- readRDS(file = "./data/output/unitrans_slow4_PF_brms_models.rds")
 ##
-ce_plot <- plot(conditional_effects(fit_list[[1]], effects = "region_type:group"), plot=FALSE)[[1]]
-ce_plot + ggtitle("test")
+# Posterior predictive check
+pp_check(fit_list[[1]], ndraws = 100)
 
+library(bayesplot)
+library(brms)
+
+param_labels <- c(
+  "cor_subj_id__Intercept__region_categorytransmodal" = "cor(Intercept, Transmodal Slope)",
+  "b_groupBP:region_categorytransmodal" = "BP × Transmodal Effect"
+)
 plot_list <- lapply(seq_along(fit_list), function (x) {
-  plot(conditional_effects(fit_list[[x]], effects = "region_type:group"), plot=FALSE)[[1]] + 
-    ggtitle(names(PF_all_scaled)[x]) +
-    scale_x_discrete(labels = c(
-      "1" = "Uni-Nonself",
-      "2" = "Uni-Self",
-      "3" = "Trans-Nonself",
-      "4" = "Trans-Self"
-    )) +
-    ylab("Standardized Peak Frequency")
+  posterior <- as_draws_df(fit_list[[x]])
+  mcmc_areas(
+    posterior, # Extract posterior draws
+    pars = c("cor_subj_id__Intercept__region_categorytransmodal", # Plot both terms
+             "b_groupBP:region_categorytransmodal"),
+    prob = 0.95
+  ) +scale_y_discrete(labels = param_labels) +
+    ggtitle(components[x])
 })
-
-plot_list <- lapply(seq_along(fit_list), function (x) {
-  plot(conditional_effects(fit_list[[x]], effects = "region_category:group"), plot=FALSE)[[1]] + 
-    ggtitle(names(PF_all_scaled)[x]) +
-    ylab("Standardized Peak Frequency")
-})
-
 
 library(ggpubr)
-combined_plot <- ggarrange(plotlist = plot_list,common.legend = TRUE)
+combined_plot <- ggarrange(plotlist = plot_list,common.legend = TRUE,ncol=5)
 final_plot <- annotate_figure(combined_plot,
                 top = text_grob("Slow 5", face = "bold", size = 16))
 # Save to file
-ggsave("./figures/slow5_combined_unitrans_plot.png", final_plot, width = 10, height = 8, dpi = 300,bg="white")
-
-posterior <- posterior_samples(fit_list[[5]])
-# Differences
-bp_hc_transmodal <- posterior$b_groupHC  # Transmodal difference
-bp_hc_unimodal <- posterior$b_groupHC + posterior$`b_groupHC:region_categoryunimodal`  # Unimodal difference
-
-# Combine into a data frame for plotting
-diffs <- data.frame(
-  Difference = c(bp_hc_transmodal, bp_hc_unimodal),
-  Region = rep(c("Transmodal", "Unimodal"), each = nrow(posterior))
-)
-
-# Plot differences
-ggplot(diffs, aes(x = Region, y = Difference)) +
-  stat_halfeye(slab_alpha = 0.5) +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(y = "BP - HC Difference", x = "Region Category") +
-  theme_minimal()
+ggsave("./figures/slow5_combined_unitrans_plot.png", final_plot,width = 20, height = 4, dpi = 300,bg="white")
 
 #### This part calculates correlation between Unimodal and transmodal regions.
 # produce same with pearson, but really nice for the mathematical steps 
@@ -309,15 +266,26 @@ ppc_dens_overlay(
 )
 
 ######## DUE TO HIGH COLLINEARITY, GATHERED UNDER UNI-TRANS #####
+
+test_data <- subject_data_list[[5]] %>% filter(group == "BP")
+test_data <- test_data %>% mutate(BDI_std = as.numeric(scale(BDI_total_score, center = TRUE, scale = TRUE)))
+
+subject_data_list <- lapply(seq_along(subject_data_list), function(x){
+  subject_data_list[[x]] <- subject_data_list[[x]] %>% 
+    filter(group == "BP"
+           ) %>% mutate(BDI_std = as.numeric(scale(BDI_total_score, center = TRUE, scale = TRUE)))
+})
+
 priors <- c(
-  prior(normal(30, 5), class = "Intercept"),   # More tightly around typical BDI
-  prior(normal(0, 2), class = "b"),            # Smaller plausible effects per SD
-  prior(exponential(1), class = "sigma")    # Less noise allowed
+  prior(normal(0, 1), class = "Intercept"),   # More tightly around typical BDI
+  prior(normal(0, 0.5), class = "b"),            # Smaller plausible effects per SD
+  prior(exponential(2), class = "sigma"),
+  prior(gamma(10, 1), class = "nu")                # DoF for t-distribution# Less noise allowed
 )
 
 fit_prior <- brm(
-  formula = BDI_total_score  ~ zdev_uni_mean + zdev_trans_mean,
-  data = subject_data_list[[5]] %>% filter(group == "BP"),
+  formula = BDI_std  ~ zdev_trans_mean,
+  data = test_data,
   family = student(),
   prior = priors,
   sample_prior = "only",
@@ -326,20 +294,28 @@ fit_prior <- brm(
   cores = 4
 )
 
-prior_preds <- posterior_predict(fit_prior)
+pp_check(fit_prior, ndraws = 1e3) 
+
+fit_data <- brm(
+  formula = BDI_std  ~ zdev_uni_mean * zdev_trans_mean,
+  data = test_data,
+  family = student(),
+  prior = priors,
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+pp_check(fit_data, ndraws = 1e3) 
+
+print(fit_data)
 
 library(bayesplot)
 
-ppc_dens_overlay(
-  y = subject_data_list[[5]]$BDI_total_score[subject_data_list[[5]]$group == "BP"],
-  yrep = prior_preds[1:1000, ]  # Use first 100 draws to avoid overplotting
-)
-
-
 fit_unv_list <- lapply(seq_along(subject_data_list), function(x){
   brm(
-    BDI_total_score  ~ zdev_uni_mean + zdev_trans_mean,
-    data = subject_data_list[[x]] %>% filter(group=="BP"),
+    BDI_std  ~ zdev_uni_mean + zdev_trans_mean,
+    data = subject_data_list[[x]],
     family = student(),
     prior = priors,
     chains = 4,
@@ -348,7 +324,7 @@ fit_unv_list <- lapply(seq_along(subject_data_list), function(x){
   )
 })
 
-summary(fit_unv_list[[5]])
+print(fit_unv_list[[5]])
 
 # Extract posterior draws
 posterior <- as_draws_df(fit_unv_list[[4]])
@@ -371,6 +347,7 @@ cor(bp[, c("zdev_uni_nonself", "zdev_uni_self", "zdev_trans_nonself", "zdev_tran
 
 bp <- subject_data_list[[1]][subject_data_list[[1]]$group=="BP",]
 cor(bp[, c("zdev_uni_mean", "zdev_trans_mean")])
+
 
 fit_multv_list <- lapply(seq_along(subject_data_list), function(x){
   brm(
@@ -397,6 +374,34 @@ fit_multv_list <- lapply(seq_along(subject_data_list), function(x){
   cores = 4
 )
 })
+
+# prior predictive check 
+multv_prior <-  brm(
+  mvbind(NA.Score, PD.Score, SM.Score) ~ 1 + zdev_uni_mean + zdev_trans_mean,
+  data = subject_data_list[[5]] %>% filter(group=="BP"),
+  family = student(),
+  prior =  priors <- c(
+    prior(normal(0, 5), class = "Intercept", resp = "NAScore"),
+    prior(normal(0, 5), class = "Intercept", resp = "PDScore"),
+    prior(normal(0, 5), class = "Intercept", resp = "SMScore"),
+    
+    prior(normal(0, 2), class = "b", resp = "NAScore"),
+    prior(normal(0, 2), class = "b", resp = "PDScore"),
+    prior(normal(0, 2), class = "b", resp = "SMScore"),
+    
+    prior(exponential(1), class = "sigma", resp = "NAScore"),
+    prior(exponential(1), class = "sigma", resp = "PDScore"),
+    prior(exponential(1), class = "sigma", resp = "SMScore"),
+    
+    prior(lkj(2), class = "rescor")  # Residual correlation prior
+  ),
+  sample_prior = "only",  # this is the key
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+pp_check(multv_prior, resp="SMScore",ndraws = 100) + xlim(c(-3,3)) # or use type = "dens_overlay", etc.
 
 fit_multv_list <- lapply(seq_along(subject_data_list), function(x){
   brm(
@@ -509,7 +514,8 @@ bp_data <- long_data_list[[5]] %>%
   filter(group == "BP") %>%
   mutate(
     subj_numeric = as.integer(factor(subj_id)),  # Numeric subject IDs for Stan
-    subscale_numeric = as.integer(factor(subscale))  # Numeric subscale IDs
+    subscale_numeric = as.integer(factor(subscale)),  # Numeric subscale IDs
+    BDI_std = scale(BDI_score)[, 1]  # Z-score standardization
   )
 
 # Prepare Stan Data List
@@ -520,14 +526,15 @@ stan_data_bp <- list(
   subj_id = bp_data$subj_numeric,
   subscale_id = bp_data$subscale_numeric,
   predictors = as.matrix(bp_data[, c("zdev_uni_mean", "zdev_trans_mean")]),
-  BDI_score = bp_data$BDI_score
+  BDI_score = bp_data$BDI_std,
+  prior_only = 0
 )
 
 # Inspect
 str(stan_data_bp)
 
 # Fit model
-fit <- sampling(
+fit_data <- sampling(
   stan_model,
   data = stan_data_bp,  # your list of data
   chains = 4,
@@ -539,11 +546,88 @@ fit <- sampling(
 posterior <- as_draws_df(fit)  # your fit object
 
 # Extract predicted scores:
-y_rep <- posterior::extract_variable_matrix(fit, variable = "y_rep")
-
+y_rep<- rstan::extract(fit, pars = "y_rep")$y_rep
 
 # Observed outcome
-y_obs <- subject_data_list[[x]]$BDI_total_score[1:33]  # Replace with your real vector
+y_obs <- subject_data_list[[x]]$BDI_total_score[1:37]  # Replace with your real vector
 
 # Density Overlay
-ppc_dens_overlay(y_obs, yrep[1:100, ])  # Use first 100 draws for clarity
+ppc_dens_overlay(y_obs, y_rep[1:100, 1:37])  # Use first 100 draws for clarity
+
+######
+##### TOO COMPLEX DOESNT WORK ####
+fit_hier_prior <- brm(
+  BDI_std ~ 1 + zdev_uni_mean + zdev_trans_mean + 
+    (1 + zdev_uni_mean + zdev_trans_mean | subj_id),
+  data = test_data,
+  family = student(),
+  prior = c(
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(normal(0, 0.25), class = "b"),
+    prior(exponential(2), class = "sd"),          # for random effects
+    prior(lkj(2), class = "cor"),                 # for correlation between random slopes
+    prior(exponential(2), class = "sigma"),       # residual SD
+    prior(gamma(10, 1), class = "nu")              # degrees of freedom
+  ),
+  chains = 4,
+  iter = 2000,
+  cores = 4,
+  sample_prior = "only"
+)
+
+pp_check(fit_hier_prior, ndraws = 1e2)
+
+fit_hier_data <- brm(
+  BDI_std ~ 1 + zdev_uni_mean + zdev_trans_mean + 
+    (1 + zdev_uni_mean + zdev_trans_mean | subj_id),
+  data = test_data,
+  family = student(),
+  prior = c(
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(normal(0, 0.25), class = "b"),
+    prior(exponential(2), class = "sd"),          # for random effects
+    prior(lkj(2), class = "cor"),                 # for correlation between random slopes
+    prior(exponential(2), class = "sigma"),       # residual SD
+    prior(gamma(10, 1), class = "nu")              # degrees of freedom
+  ),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+pp_check(fit_hier_data, ndraws = 1e3)
+
+print(fit_hier_data)
+
+#########
+bp_data <- subject_data_list[[5]] %>%
+  filter(group == "BP") %>%
+  mutate(
+    subj_numeric = as.integer(factor(subj_id)),  # Numeric subject IDs for Stan
+    subscale_numeric = as.integer(rep(1, times =37)),  # Numeric subscale IDs
+    BDI_std = scale(BDI_total_score)[, 1]  # Z-score standardization
+  )
+
+# Prepare Stan Data List
+stan_data_bp <- list(
+  n_obs = nrow(bp_data),
+  n_subj = length(unique(bp_data$subj_numeric)),
+  n_subscales = length(unique(bp_data$subscale_numeric)),
+  subj_id = bp_data$subj_numeric,
+  subscale_id = bp_data$subscale_numeric,
+  predictors = as.matrix(bp_data[, c("zdev_uni_mean", "zdev_trans_mean")]),
+  BDI_score = bp_data$BDI_std,
+  prior_only = 0
+)
+
+# Inspect
+str(stan_data_bp)
+
+# Fit model
+fit_data <- sampling(
+  stan_model,
+  data = stan_data_bp,  # your list of data
+  chains = 4,
+  iter = 2000,
+  seed = 123
+)

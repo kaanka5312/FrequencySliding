@@ -6,6 +6,7 @@ data {
   int<lower=1> subscale_id[n_obs]; // subscale ID for each observation
   matrix[n_obs, 2] predictors;   // predictors: Two brain deviation variables
   vector[n_obs] BDI_score;       // observed BDI subscale score (long format)
+  int<lower=0, upper=1> prior_only;  // if 1, skip likelihood
 }
 
 parameters {
@@ -33,12 +34,13 @@ model {
   vector[n_obs] mu;
 
   // Priors
-  intercept ~ normal(0, 5);
-  to_vector(beta) ~ normal(0, 2);
-  sigma_random ~ exponential(1);
+  intercept ~ normal(0, 0.25);
+  to_vector(beta) ~ normal(0, 0.25);
+  sigma_random ~ exponential(2);
   L_random ~ lkj_corr_cholesky(2);
-  sigma ~ exponential(1);
-  nu ~ gamma(2, 0.1);  // favors moderate values, avoids heavy tails dominating
+  sigma ~ exponential(2);
+  //nu ~ gamma(2, 0.1);  // favors moderate values, avoids heavy tails dominating
+  nu ~ gamma(8, 1);  // favors moderate values, avoids heavy tails dominating
 
   // Random effect standard normal prior
   for (i in 1:n_subj) {
@@ -55,8 +57,10 @@ model {
         (beta[subscale_id[i], 2] + random_effects[subj_id[i], 3]) * predictors[i, 2];
 
   }
-
-  BDI_score ~ student_t(nu, mu, sigma);
+   // Only add the likelihood if we are NOT doing prior-only sampling
+  if (prior_only == 0) {
+    BDI_score ~ student_t(nu, mu, sigma);
+  }
 }
 
 generated quantities{
