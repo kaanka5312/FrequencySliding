@@ -29,11 +29,11 @@ PF_all_scaled <- list()
 
 for (comp in components) {
   # Extract component from each subject (1st dimension is subject, 2nd is region)
-  PF_bp_mat <- t(sapply(BP$PF.all.slow4[1:n_bp], function(x) {
+  PF_bp_mat <- t(sapply(BP$PF.all.slow5[1:n_bp], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
-  PF_hc_mat <- t(sapply(HC$PF.all.slow4[1:n_hc], function(x) {
+  PF_hc_mat <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
     x[[1]][comp, 1, 1][[1]]
   }))
   
@@ -143,8 +143,8 @@ for (comp in names(PF_collapsed_list)) {
   )
 }
 
-saveRDS(fit_list, file = "./data/output/unitrans_slow4_PF_brms_models.rds")
-fit_list <- readRDS(file = "./data/output/unitrans_slow4_PF_brms_models.rds")
+saveRDS(fit_list, file = "./data/output/unitrans_slow5_PF_brms_models.rds")
+fit_list <- readRDS(file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 ##
 # Posterior predictive check
 pp_check(fit_list[[1]], ndraws = 100)
@@ -152,6 +152,48 @@ pp_check(fit_list[[1]], ndraws = 100)
 library(bayesplot)
 library(brms)
 
+# Subjects differ in overall outcome level.
+param_labels <- c(
+  "sd_subj_id__Intercept" = "Subject-level Intercept SD"
+)
+plot_list <- lapply(seq_along(fit_list), function (x) {
+  posterior <- as_draws_df(fit_list[[x]])
+  mcmc_areas(
+    posterior, # Extract posterior draws
+    pars = c("sd_subj_id__Intercept"),
+    prob = 0.95
+  ) +scale_y_discrete(labels = param_labels) +
+    ggtitle(components[x])
+})
+
+library(ggpubr)
+combined_plot <- ggarrange(plotlist = plot_list,common.legend = TRUE,ncol=5)
+final_plot <- annotate_figure(combined_plot,
+                              top = text_grob("Slow 5", face = "bold", size = 16))
+# Save to file
+ggsave("./figures/slow5_subjid_intercept_plot.png", final_plot,width = 20, height = 4, dpi = 300,bg="white")
+
+#
+param_labels <- c(
+  "sd_subj_id__region_categorytransmodal" = "Subject-level Variability in Transmodal Effect"
+)
+plot_list <- lapply(seq_along(fit_list), function (x) {
+  posterior <- as_draws_df(fit_list[[x]])
+  mcmc_areas(
+    posterior, # Extract posterior draws
+    pars = c("sd_subj_id__region_categorytransmodal"),
+    prob = 0.95
+  ) +scale_y_discrete(labels = param_labels) +
+    ggtitle(components[x])
+})
+
+library(ggpubr)
+combined_plot <- ggarrange(plotlist = plot_list,common.legend = TRUE,ncol=5)
+final_plot <- annotate_figure(combined_plot,
+                              top = text_grob("Slow 5", face = "bold", size = 16))
+# Save to file
+ggsave("./figures/slow5_subjid_ts_plot.png", final_plot,width = 20, height = 4, dpi = 300,bg="white")
+# REGRESSION COEFFICENTS #
 param_labels <- c(
   "cor_subj_id__Intercept__region_categorytransmodal" = "cor(Intercept, Transmodal Slope)",
   "b_groupBP:region_categorytransmodal" = "BP × Transmodal Effect"
