@@ -148,6 +148,7 @@ fit_list <- readRDS(file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 ##
 # Posterior predictive check
 pp_check(fit_list[[1]], ndraws = 100)
+pp_check(fit_list[[5]], type = "error_scatter_avg")
 
 library(bayesplot)
 library(brms)
