@@ -3,7 +3,7 @@ process_pf_summary <- function(PF_summary, bdi_file = "./data/raw/BDI_ThreeFacto
   library(dplyr)
   
   # Load and preprocess BDI data
-  bdi <- read_xlsx(bdi_file) %>% 
+  bdi <- readxl::read_xlsx(bdi_file, sheet=1) %>% 
     select(c("SubjectID", "NA Score", "PD Score", "SM Score")) %>% 
     mutate(across(c(`NA Score`, `PD Score`, `SM Score`), as.numeric)) %>%
     drop_na()

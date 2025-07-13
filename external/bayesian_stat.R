@@ -253,8 +253,18 @@ subjects_sorted <- subjects_split[order(numbers)]
 
 print(subjects_sorted)
 
+subj_data <- readxl::read_xlsx("./data/raw/BDI_ThreeFactor_MultiSubject.xlsx", sheet=1)
+
 PF_summary_list <- lapply(seq_along(PF_summary_list), function(x) {
   PF_summary_list[[x]]$subj_id <- subjects_sorted
+  
+  # Remove '.results' from the end of each subject name
+  subjects_clean <- gsub("\\.results$", "", subjects_sorted)
+  
+  # Filter subj_data for matching SubjectID values
+  PF_summary_list[[x]]$Age <- subj_data[subj_data$SubjectID %in% subjects_clean, ]$Age
+  PF_summary_list[[x]]$Sex <- subj_data[subj_data$SubjectID %in% subjects_clean, ]$Sex
+  PF_summary_list[[x]]$DoI <- c(subj_data[subj_data$SubjectID %in% subjects_clean, ]$DoI,rep(0,33))
   PF_summary_list[[x]]  # Return the modified element
   })
 
