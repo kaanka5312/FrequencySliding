@@ -38,9 +38,23 @@ for (comp in components) {
   }))
   
   # Combine and scale
-  PF_all_scaled[[comp]] <- scale(rbind(PF_bp_mat, PF_hc_mat))
+  PF_all_scaled[[comp]] <- scale(rbind(PF_bp_mat, PF_hc_mat), center = TRUE, scale = TRUE)
 }
 
+subj_ids <- c(sapply(BP$PF.all.slow5, function(x) x[[1]][[6]]))
+subj_ids_clean <- gsub("\\.results", "", subj_ids)        # Remove ".results"
+subj_ids_clean <- gsub("sub-", "", subj_ids_clean)        # Remove "sub-"
+
+# To avoid doubling in subject numbers, HC is renumbered. IT IS NOT MIX LIKE BP
+subj_ids_clean <- c(subj_ids_clean,paste0(43:75))
+
+# Let's say PF_data is your list of matrices
+PF_all_scaled_df <- lapply(PF_all_scaled, function(mat) {
+  df <- as.data.frame(mat)
+  df$subj_id <- subj_ids_clean  # Assign subject IDs as rownames
+  df <- df[order(as.numeric(df$subj_id)), ] # Increase in Id
+  return(df)
+})
 
 library(tidyverse)
 
@@ -60,23 +74,33 @@ region_types <- data.frame(
                        labels = c("uni_nonself", "uni_self", "trans_nonself", "trans_self"))  # adjust if needed
 )
 
+bp_subj <- readxl::read_xlsx("./data/raw/BDI_ThreeFactor_MultiSubject.xlsx", sheet=1)
+hc_subj <- read_tsv("/Volumes/HD-B1/BIDS/participants.tsv") %>%
+  slice(35:70) %>%
+  filter(!participant_id %in% c("sub-54", "sub-39", "sub-58"))
+
+
 # Initialize the result list
 PF_long_list <- list()
 
 # Loop over each PF component
-for (comp in names(PF_all_scaled)) {
-  df <- as.data.frame(PF_all_scaled[[comp]])
-  colnames(df) <- region_names
-  df$subj_id <- 1:71
+for (comp in names(PF_all_scaled_df)) {
+  df <- PF_all_scaled_df[[comp]]
   df$group <- rep(c("BP", "HC"), times = c(38, 33))
-  
+  df$age <- scale(c(bp_subj[bp_subj$SubjectID %in% paste0("sub-",df$subj_id[1:38]), ]$Age,
+              hc_subj$Age),
+              center = TRUE, scale = TRUE)
+  df$sex <- factor(c(bp_subj[bp_subj$SubjectID %in% paste0("sub-",df$subj_id[1:38]), ]$Sex,
+              hc_subj$Sex))
+  df$BDI <- as.numeric(c(bp_subj[bp_subj$SubjectID %in% paste0("sub-",df$subj_id[1:38]), ]$`Total Score`,
+              hc_subj$BDI))
   # Convert to long format
   df_long <- pivot_longer(df, cols = all_of(region_names),
                           names_to = "region", values_to = "value")
   
   # Add region_type
   df_long <- left_join(df_long, region_types, by = "region")
-  
+  df_long$subj_id
   # Save in the list
   PF_long_list[[comp]] <- df_long
 }
@@ -92,6 +116,7 @@ PF_collapsed_list <- lapply(PF_long_list, function(df) {
     region_category = factor(region_category, levels = c("unimodal", setdiff(unique(region_category), "unimodal")))
     )
 })
+
 
 ####=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 ###  G R O U P X R E G I ON ###
@@ -114,7 +139,7 @@ priors <- c(
 
 # Test Priors
 prior_only_fit <- brm(
-  value ~ group * region_category + (region_category | subj_id) + (1 | region),
+  value ~ group * region_category + (region_category | subj_id) + (1 | region) + age + sex,
   data = PF_collapsed_list[[5]],
   family = student(),
   prior = priors,
@@ -127,12 +152,13 @@ prior_only_fit <- brm(
 
 pp_check(prior_only_fit, ndraws = 1e3) + xlim(c(-3,3)) # or use type = "dens_overlay", etc.
 
+fit_list <- list ()
 # Loop through each component's long data frame
 for (comp in names(PF_collapsed_list)) {
   message("Fitting model for: ", comp)
   
   fit_list[[comp]] <- brm(
-    value ~ group * region_category + (region_category | subj_id) + (1 | region),
+    value ~ group * region_category + (region_category | subj_id) + (1 | region) + age + sex,
     data = PF_collapsed_list[[comp]],
     family = student(),
     prior = priors,
@@ -147,7 +173,7 @@ saveRDS(fit_list, file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 fit_list <- readRDS(file = "./data/output/unitrans_slow5_PF_brms_models.rds")
 ##
 # Posterior predictive check
-pp_check(fit_list[[1]], ndraws = 100)
+pp_check(fit_list[[5]], ndraws = 100)
 pp_check(fit_list[[5]], type = "error_scatter_avg")
 
 library(bayesplot)
@@ -235,12 +261,133 @@ cor_TU <- cov_TU / sqrt(var_T * var_U)
 mean(cor_TU)
 quantile(cor_TU, c(0.025, 0.975))
 
-###### RELATION TO BDI #####
+##### TEST #######
+
+library(dplyr)
+
+PF_long <- PF_long_list[[5]] |>
+  bind_rows() 
+
+# To bind them under category
+# PF_long <- PF_long_list |>                       # stack the list
+#   bind_rows() |>
+#   mutate(
+#     region_type = fct_collapse(
+#       region_type,
+#       unimodal   = c("uni_self",  "uni_nonself"),
+#       transmodal = c("trans_self","trans_nonself")
+#     )
+#   )
+
+## 1.2 average PF within subject × region_type
+PF_subject <- PF_long |>
+  group_by(subj_id, region_type, .drop = FALSE) |>
+  summarise(PF = mean(value), .groups = "drop") |>
+  pivot_wider(names_from  = region_type,
+              values_from = PF)
+
+## 1.  Pull the unique subject information you need -------------
+subj_covars <- PF_long %>%                      # 25 560 rows
+  select(subj_id, group, sex, age, BDI) %>%     # keep only the covariates
+  distinct()                                    # one row per subject
+
+## 2.  Join them onto your existing summary ---------------------
+PF_subject <- PF_subject %>%                    # 71 × 3 (unimodal, transmodal)
+  left_join(subj_covars, by = "subj_id") %>%
+  #  relocate(subj_id, group, sex, age, BDI,       # tidy column order (optional)
+  #           unimodal, transmodal)
+  
+  relocate(subj_id, group, sex, age, BDI,       # tidy column order (optional)
+          uni_self, trans_self, uni_nonself, trans_nonself)
+
+
+PF_subject <- PF_subject %>% 
+  ## convert grouping variables once
+  mutate(
+    group = factor(group),   # BP / HC
+    sex   = factor(sex)      # 1 / 2
+  ) %>% 
+  ## z-score the continuous columns and keep them as plain numerics
+  mutate(
+    BDI_z        = as.numeric(scale(BDI)),
+    age_z        = as.numeric(scale(age)),
+    #unimodal_z   = as.numeric(scale(unimodal)),
+    #transmodal_z = as.numeric(scale(transmodal))    
+  uni_self_z   = as.numeric(scale(uni_self)),
+   trans_self_z = as.numeric(scale(trans_self)),
+   uni_nonself_z   = as.numeric(scale(uni_nonself)),
+    trans_nonself_z = as.numeric(scale(trans_nonself))
+  )
+
+
+library(brms)
+
+# SEPERATE PRIORS
+# priors <- c(
+#   prior(normal(0, 0.5),  class = "Intercept"),
+#   prior(normal(0, 0.25),  class = "b"),          # generic for all β
+#   prior(exponential(2),  class = "sigma") # residual SD
+#   #prior(exponential(2),  class = "sd"),         # for (1|group)
+# )
+
+# FOR RIDGING THE MULTICOL
+priors <- c(
+  prior(normal(0, 0.5),  class = "Intercept"),
+  prior(student_t(3, 0, 0.3), class = "b"),      # weak ridge
+  # or: prior(horseshoe(df = 1, par_ratio = 0.2, scale_global = 0.3), class = "b")
+  prior(exponential(2),  class = "sigma")
+  #prior(exponential(2),  class = "sd"),         # for (1|group)
+)
+
+bf_BDI  <- bf(
+  BDI_z ~
+    (uni_self_z + trans_self_z + uni_nonself_z+ trans_nonself_z) * group + # main PF predictors
+    sex + age_z                     # covariates
+    # group-level random intercept (optional)
+)
+
+# bf_BDI  <- bf(
+#   BDI_z ~
+#     (unimodal_z + transmodal_z) * group + # main PF predictors
+#     sex + age_z                   # covariates
+#   # group-level random intercept (optional)
+# )
+
+
+fit_prior <- brm(
+  bf_BDI, data = PF_subject, family = gaussian(),
+  prior = priors, sample_prior = "only",
+  chains = 4, iter = 2000, cores = 4, seed = 123
+)
+
+pp_check(fit_prior, ndraws = 1e2)        # do the prior predictive plots look reasonable?
+
+fit <- update(fit_prior, sample_prior = "yes")  # runs the full model
+pp_check(fit, ndraws=1e2)
+pp_check(fit, type = "error_scatter_avg")
+
+# Plot 
+posterior <- as_draws_df(fit)
+mcmc_areas(
+  posterior, # Extract posterior draws
+  pars = c("b_sex2", "b_age_z", # Plot both terms
+           "b_uni_self_z", "b_trans_self_z", "b_uni_nonself_z", "b_trans_nonself_z"),
+  prob = 0.95
+) 
+
+
+####################################################
+#=+=+=+=+=+=+  O L D =+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+#=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 
 PF_summary_list <- lapply(seq_along(PF_long_list), function(x) {PF_long_list[[x]] %>%
     group_by(subj_id, region_type) %>%
     summarise(mean_PF = mean(value), .groups = "drop") %>%
-    tidyr::pivot_wider(names_from = region_type, values_from = mean_PF)} )
+    tidyr::pivot_wider(names_from = region_type, values_from = mean_PF) %>%
+    mutate(subj_id = as.numeric(subj_id)) %>%
+    arrange(subj_id)
+  
+  } )
 
 subjects <- readLines("./data/raw/bpb_strings.txt")
 subjects_split <- c(strsplit(subjects, "\t")[[1]],paste0("sub-",43:75,".results"))
