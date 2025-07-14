@@ -48,6 +48,31 @@ cd sub-${subj}.results
 cd /Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc
 done
 
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+#####  S E S S I O N - 2 #################
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+
+cd /mnt/e/Thesis/SES-2_BIDS/derivatives/afni_proc
+
+for subj in 1 13 19 20 23 36 4 5 6 8 ;do
+
+subj=${subj}_ses2
+echo ${subj}
+cd sub-${subj}.results
+
+	cd Zscore_data_bandpass
+		# Extracting the BOLD signal and save
+		
+	for ROI in {1..180} {1001..1180};do
+	echo ${ROI}
+	3dROIstats -quiet \
+	-mask /home/kaanka5312/MultGroup_WC/REPLICATION/MASK/glasser_${ROI}.nii \
+	rest_Zscore+tlrc \
+	> BOLD_${ROI}.1D
+	done
+
+cd /mnt/e/Thesis/SES-2_BIDS/derivatives/afni_proc
+done
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 #####  C O N T R O L #####################
