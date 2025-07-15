@@ -9,7 +9,8 @@
 cd /Volumes/HD-B1/BPB_proc/
 
 % Windows 
-cd E:/BPB_proc/
+%cd E:/BPB_proc/
+
 % List of subject directories (adjust pattern as needed)
 subject_dirs = dir('sub-*.results');
 subject_dirs_1 = {subject_dirs.name};
@@ -17,7 +18,7 @@ subject_dirs_full_1 = cellfun(@(s) fullfile('/Volumes/HD-B1/BPB_proc/', s), subj
 
 % Ses-1
 cd /Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/
-cd E:/Thesis/SES-1_BIDS/derivatives/afni_proc/ 
+%cd E:/Thesis/SES-1_BIDS/derivatives/afni_proc/ 
 subject_dirs = dir('sub-*.results');
 subject_dirs_2 = {subject_dirs.name};
 subject_dirs_full_2 = cellfun(@(s) fullfile('/Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc/', s), subject_dirs_2, 'UniformOutput', false);
@@ -111,6 +112,28 @@ for i=1:numel(BOLD_filtered_slow5)
 end
 
 save('./data/output/PF_BP.mat',"PF_all_slow4","PF_all_slow5",'-mat')
+
+% ##########################
+% ### A C W  ####
+% ##########################
+
+%--- main script -------------------------------------------------------
+fs = 1/3;                               % 3-s TR  → 0.333 Hz
+BP_acw = cellfun(@(m) row_acw(m,fs), ...
+                 BOLD_all_subjects_BP, ...
+                 'UniformOutput',false);
+
+% ##########################
+% ### M F   ####
+% ##########################
+% ---------- main script ----------------------------------------------
+fs        = 1/3;               % 3-s TR  → 0.333 Hz
+freqrange = [0.01 0.1];        % typical fMRI band
+
+BP_mf = cellfun(@(m) row_mf(m, fs, freqrange), ...
+                BOLD_all_subjects_BP, ...
+                'UniformOutput', false);
+
 
 %=+=+=+=+=+=+=+=+=+=+=+=+
 %### C O N T R O L ######
