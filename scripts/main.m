@@ -74,6 +74,11 @@ save('/home/kaanka5312/projects/FrequencySliding/data/output/BOLD_all_subjects_H
 %=+=+=+=+=+=+=+=+=+=+=+=+
 %### B I P O L A R ######
 %=+=+=+=+=+=+=+=+=+=+=+=+
+
+% ##########################
+% ### P E A K   F R E Q ####
+% ##########################
+
 load('./data/output/BOLD_all_subjects_BP.mat');
 
 BOLD_filtered_slow4 = cellfun( ...
