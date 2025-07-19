@@ -52,7 +52,8 @@ done
 
 cd /Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc
 
-for subj in 1 4 5 6 8 13 19 20 23 36 39 ;do
+#for subj in 1 4 5 6 8 13 19 20 23 36 ;do
+for subj in 33 38 39 ;do
 
 subj=${subj}_ses2
 echo ${subj}
