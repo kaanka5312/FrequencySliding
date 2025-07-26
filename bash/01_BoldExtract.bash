@@ -29,7 +29,8 @@ done
 
 cd /Volumes/HD-B1/Thesis/SES-1_BIDS/derivatives/afni_proc
 
-for subj in {24..34} {36..42} ;do
+#for subj in {24..34} {36..42} ;do
+for subj in 35 ;do
 
 echo ${subj}
 cd sub-${subj}.results
@@ -53,7 +54,7 @@ done
 cd /Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc
 
 #for subj in 1 4 5 6 8 13 19 20 23 36 ;do
-for subj in 1 ;do
+for subj in 38 ;do
 
 subj=${subj}_ses2
 echo ${subj}
