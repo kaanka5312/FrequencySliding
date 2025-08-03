@@ -151,10 +151,26 @@ def acw_slidingwindow(eeg, fs, window, overlap=50, lag=None):
 
 def acw_slidingwindow_array(ts, fs, window):
     """
-    Assumes ts is times x channels
+    ts: times x channels
+    Returns a dict with per-channel ACW0, ACW50, and the full ACF_mean/time.
     """
     n_times, n_channels = ts.shape
-    int_array = np.zeros((4, n_channels))
-    for i_channel in range(n_channels):
-        int_array[:, i_channel] = acw_slidingwindow(ts[:, i_channel], fs, window)
-    return int_array
+    acw0 = np.zeros(n_channels)
+    acw50 = np.zeros(n_channels)
+    acf_means = []
+    time_vector = None
+
+    for i in range(n_channels):
+        acw0[i], acw50[i], acf_mean, time = acw_slidingwindow(ts[:, i], fs, window)
+        acf_means.append(acf_mean)
+        if time_vector is None:
+            time_vector = time  # same for all channels
+
+    acf_means = np.stack(acf_means, axis=1)  # shape: (lags, channels)
+
+    return {
+        "ACW0": acw0,                # (n_channels,)
+        "ACW50": acw50,              # (n_channels,)
+        "ACF_mean": acf_means,       # (2*lag+1, n_channels)
+        "time": time_vector          # (2*lag+1,)
+    }
