@@ -6,10 +6,10 @@
 %cd /media/kaanka5312/HD-B1/BPB_proc/
 
 % MacOS
-cd /Volumes/HD-B1/BPB_proc/
+%cd /Volumes/HD-B1/BPB_proc/
 
 % Windows 
-%cd E:/BPB_proc/
+cd E:/BPB_proc/
 
 % List of subject directories (adjust pattern as needed)
 subject_dirs = dir('sub-*.results');
@@ -38,13 +38,13 @@ save('/Users/kaankeskin/projects/FrequencySliding/data/output/BOLD_all_subjects_
     "BOLD_all_subjects_BP",'-mat')
 
 % Ses-2
-cd /Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc/
+cd E:/Thesis/SES-2_BIDS/derivatives/afni_proc/
 subject_dirs = dir('sub-*.results');
 subject_dirs_ses2 = {subject_dirs.name};
-subject_dirs_full_ses2 = cellfun(@(s) fullfile('/Volumes/HD-B1/Thesis/SES-2_BIDS/derivatives/afni_proc/', s), subject_dirs_ses2, 'UniformOutput', false);
+subject_dirs_full_ses2 = cellfun(@(s) fullfile('E:/Thesis/SES-2_BIDS/derivatives/afni_proc/', s), subject_dirs_ses2, 'UniformOutput', false);
 % Apply BoldRoi_Subjects to each folder using cellfun
 BOLD_ses2_BP = cellfun(@BoldRoi_Subjects, subject_dirs_full_ses2, 'UniformOutput', false);
-save('/home/kaanka5312/projects/FrequencySliding/data/output/BOLD_ses2_BP.mat',...
+save('C:/Users/kaank/OneDrive/Belgeler/GitHub/FrequencySliding/data/output/BOLD_ses2_BP.mat',...
     "BOLD_ses2_BP",'-mat')
 
 
@@ -113,6 +113,39 @@ end
 
 save('./data/output/PF_BP.mat',"PF_all_slow4","PF_all_slow5",'-mat')
 
+% Session 2
+load('C:/Users/kaank/OneDrive/Belgeler/GitHub/FrequencySliding/data/output/BOLD_ses2_BP.mat')
+
+BOLD_filtered_slow4 = cellfun( ...
+    @(x) bandpass_cheby1(x', 0.027, 0.073, 1/3)', ...
+    BOLD_ses2_BP, ...
+    'UniformOutput', false);
+
+BOLD_filtered_slow5 = cellfun( ...
+    @(x) bandpass_cheby1(x', 0.01, 0.027, 1/3)', ...
+    BOLD_ses2_BP, ...
+    'UniformOutput', false);
+
+[peak_freq,x_phase] = pf_cohen(BOLD_filtered_slow5{4}(:,4:153)',1/3);
+phase_segmented_pf(x_phase, peak_freq)
+
+PF_ses2_slow4 = cell(1, numel(BOLD_filtered_slow4));
+for i=1:numel(BOLD_filtered_slow4)
+    [peak_freq,x_phase] = pf_cohen(BOLD_filtered_slow4{i}(:,4:153)',1/3);
+    PF_struct = phase_segmented_pf(x_phase, peak_freq);
+    PF_ses2_slow4{i} = PF_struct;
+    PF_ses2_slow4{i}.subj_id = subject_dirs_ses2{i};
+end
+
+PF_ses2_slow5 = cell(1, numel(BOLD_filtered_slow5));
+for i=1:numel(BOLD_filtered_slow5)
+    [peak_freq,x_phase] = pf_cohen(BOLD_filtered_slow5{i}(:,4:153)',1/3);
+    PF_struct = phase_segmented_pf(x_phase, peak_freq);
+    PF_ses2_slow5{i} = PF_struct;
+    PF_ses2_slow5{i}.subj_id = subject_dirs_ses2{i};
+end
+
+save('./data/output/PF_ses2.mat',"PF_ses2_slow4","PF_ses2_slow5",'-mat')
 % ##########################
 % ### A C W  ####
 % ##########################
