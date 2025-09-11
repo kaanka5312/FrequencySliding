@@ -200,3 +200,29 @@ cd sub-${subj}.results
 
 cd /Volumes/HD-B1/BIDS/derivatives/afni/
 done
+
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+#####  C O N T R O L #####################
+#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
+
+# WSL
+cd /mnt/e/BIDS/derivatives/afni/
+
+for subj in {1..34};do
+
+echo ${subj}
+cd sub-${subj}.results
+
+	cd Zscore_data_bandpass
+	# Extracting the BOLD signal and save
+		
+	for ROI in {1..180} {1001..1180};do
+		
+	3dROIstats -quiet \
+	-mask /home/kaanka5312/MultGroup_WC/REPLICATION/MASK/glasser_${ROI}.nii \
+	rest_Zscore.censored+tlrc \
+	> BOLD_${ROI}_censored.1D
+	done
+
+cd /mnt/e/BIDS/derivatives/afni/
+done
