@@ -24,16 +24,16 @@ PF_whole_hc <- t(sapply(HC$PF.all.slow5[1:n_hc], function(x) {
   x[[1]]["PF.whole", 1, 1][[1]]
 }))
 
-PF_whole_all <- rbind(PF_whole_bp,PF_whole_hc)
+PF_whole_all <- rbind(PF_whole_bp, PF_whole_hc)
 
 ###### Masking #######
 mask_list <- list(trans_self = NeuroMyelFC::trans_self,
                   trans_nonself = NeuroMyelFC::trans_nonself,
                   uni_self = NeuroMyelFC::uni_self,
-                  uni_nonself = NeuroMyelFC::uni_nonself )
+                  uni_nonself = NeuroMyelFC::uni_nonself)
 
 PF_all_topo <- sapply(mask_list, function(mask) {
-         rowMeans(PF_whole_all[,mask])
+  rowMeans(PF_whole_all[,mask])
 })
 
 Peak_long <- reshape2::melt(PF_all_topo, varnames=c("Subject","Region"))
